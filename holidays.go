@@ -3,7 +3,6 @@ package goutils
 import (
 	"time"
 
-	"github.com/coloraven/goutils"
 	hc "github.com/feymanlee/holiday-cn"
 )
 
@@ -19,7 +18,7 @@ type Holiday struct {
 func GetDayAttribut(day string) Holiday {
 	var h Holiday
 	h.Raw = day
-	h.Time, _ = goutils.GetDay(day)
+	h.Time, _ = GetDay(day)
 	h.IsOffDay = hc.IsOffDay(h.Time)
 	h.IsHoliday = hc.IsHoliday(h.Time)
 	//  是否是调休日
