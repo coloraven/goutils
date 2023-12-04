@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,12 +13,17 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-// escapeCSVCell 处理单元格内容，如果包含逗号，则用双引号包裹
-func escapeCSVCell(cell string) string {
-	if strings.Contains(cell, ",") {
-		return fmt.Sprintf("\"%s\"", cell)
+// escapeCSVField 处理单元格内容，如果包含逗号，则用双引号包裹
+func escapeCSVField(field string, delimiter rune) string {
+	// 替换所有的双引号为两个双引号
+	escapedField := strings.ReplaceAll(field, "\"", "\"\"")
+
+	// 如果字段包含分隔符、双引号或换行符，用双引号包裹整个字段
+	if strings.ContainsAny(escapedField, string(delimiter)+"\"\n") {
+		escapedField = fmt.Sprintf("\"%s\"", escapedField)
 	}
-	return cell
+
+	return escapedField
 }
 
 // ReadExcelToCSV 读取 XLSX 文件并返回 CSV 格式的字符串
@@ -45,7 +51,7 @@ func ReadExcelToCSV(filePath string) (string, error) {
 	var csvBuilder strings.Builder
 	for _, row := range rows {
 		for i, cell := range row {
-			row[i] = escapeCSVCell(cell)
+			row[i] = escapeCSVField(cell, ',')
 		}
 		csvRow := strings.Join(row, ",")
 		csvBuilder.WriteString(fmt.Sprintf("%s\n", csvRow))
@@ -79,7 +85,7 @@ func WriteDataFrameToFile(df dataframe.DataFrame, outputPath string, delimiter .
 	case ".csv":
 		return WriteToCSV(df, outputPath, sep)
 	case ".xlsx":
-		return WriteToExcel(df, outputPath)
+		return WriteToXLSX(df, outputPath)
 	case ".xls":
 		panic("不支持保存为xls格式文件")
 	default:
@@ -106,8 +112,8 @@ func WriteToCSV(df dataframe.DataFrame, outputPath string, sep rune) error {
 	return nil
 }
 
-// WriteToExcel 将Gota DataFrame 写入 Excel XLSX文件,暂不支持xls文件写入
-func WriteToExcel(df dataframe.DataFrame, outputPath string) error {
+// WriteToXLSX 将Gota DataFrame 写入 Excel XLSX文件,暂不支持xls文件写入
+func WriteToXLSX(df dataframe.DataFrame, outputPath string) error {
 	f := excelize.NewFile()
 	sheetName := "Sheet1"
 	f.NewSheet(sheetName)
@@ -185,4 +191,141 @@ func FindColumnIndexByTitle(f *excelize.File, sheetName, title string) (int, err
 		}
 	}
 	return 0, fmt.Errorf("找不到标题为 %s 的列", title)
+}
+
+// map切片写入csv文件中
+func WriteMapsToCSV(datas []map[string]string, filename string, delimiter ...rune) {
+	// 文件后缀名处理
+	r := strings.Split(filename, ".")
+	if len(r) > 1 && r[1] == "csv" {
+		filename = r[0]
+	} else if len(r) > 1 && r[1] != "csv" {
+		panic("不支持的后缀名")
+	}
+	filename += ".csv"
+
+	// 创建 CSV 文件
+	file, err := os.Create(filename)
+	if err != nil {
+		fmt.Println("Cannot create file:", err)
+		return
+	}
+	defer file.Close()
+
+	// 设置默认分隔符为逗号，除非另外指定
+	var sep rune
+	if len(delimiter) > 0 {
+		sep = delimiter[0]
+	} else {
+		sep = ','
+	}
+	// 创建 CSV 写入器
+	writer := csv.NewWriter(file)
+	writer.Comma = sep
+	defer writer.Flush()
+
+	// 写入标题（列名）
+	var headers []string
+	if len(datas) > 0 {
+		for key := range datas[0] {
+			headers = append(headers, key)
+		}
+		if err := writer.Write(headers); err != nil {
+			fmt.Println("Cannot write to file:", err)
+			return
+		}
+	}
+
+	// 写入数据行
+	for _, element := range datas {
+		var row []string
+		for _, header := range headers {
+			value := escapeCSVField(element[header], ',')
+			row = append(row, value)
+		}
+		if err := writer.Write(row); err != nil {
+			fmt.Println("Cannot write to file:", err)
+			return
+		}
+	}
+
+	fmt.Println("CSV file written successfully")
+}
+
+// WriteMapsToXLSX 将 []map[string]string 数据写入给定文件名的 XLSX 文件。
+func WriteMapsToXLSX(data []map[string]string, filename string) error {
+	// 判断文件后缀
+	r := strings.Split(filename, ".")
+	if len(r) > 1 && r[1] != "xlsx" {
+		return fmt.Errorf("不支持的文件后缀名: .%s", r[1])
+	}
+	if len(r) == 1 {
+		filename += ".xlsx"
+	}
+
+	// 创建新的 Excel 文件
+	f := excelize.NewFile()
+	sheetName := "Sheet1"
+
+	// 确保列标题的顺序一致
+	var headers []string
+	for key := range data[0] {
+		headers = append(headers, key)
+	}
+
+	// 写入列标题
+	for i, header := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		f.SetCellValue(sheetName, cell, header)
+	}
+
+	// 写入数据
+	for i, rowMap := range data {
+		for j, header := range headers {
+			cell, _ := excelize.CoordinatesToCellName(j+1, i+2)
+			f.SetCellValue(sheetName, cell, rowMap[header])
+		}
+	}
+
+	// 保存文件
+	if err := f.SaveAs(filename); err != nil {
+		return fmt.Errorf("无法保存文件: %v", err)
+	}
+
+	return nil
+}
+
+// 将字符串请求头转为map请求头
+func StringHeadersToMap(headersStr string) (map[string]string, error) {
+	headersMap := map[string]string{}
+	headersLines := strings.Split(headersStr, "\n")
+
+	for _, line := range headersLines {
+		line = strings.TrimSpace(line) //去掉前后空白字符
+		if line == "" {
+			continue // 跳过空行
+		}
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid header line: %s", line)
+		}
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		headersMap[key] = value
+	}
+
+	return headersMap, nil
+}
+
+// 字符串Cookies转为map
+func StringCookiesToMAP(cookiesStr string) (map[string]string, error) {
+	header := http.Header{}
+	header.Add("Cookie", cookiesStr)
+	request := http.Request{Header: header}
+	cookies := request.Cookies()
+	cookiesMap := make(map[string]string, len(cookies))
+	for _, cookie := range cookies {
+		cookiesMap[cookie.Name] = cookie.Value
+	}
+	return cookiesMap, nil
 }
