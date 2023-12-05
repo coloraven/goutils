@@ -2,6 +2,7 @@ package goutils
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -328,4 +329,90 @@ func StringCookiesToMAP(cookiesStr string) (map[string]string, error) {
 		cookiesMap[cookie.Name] = cookie.Value
 	}
 	return cookiesMap, nil
+}
+
+// FlattenJSON 递归地将嵌套的 JSON 数据解压为一维的 []map[string]string。
+//
+//	jsonData := `{
+//			"first": "Dale",
+//			"last": "Murphy",
+//			"age": 44,
+//			"nets": ["ig", "fb", "value1", "value2"],
+//			"submap": {
+//				"subfirst": "Dale",
+//				"sublast": ["Murphy", "value3", "value4"],
+//	            "subsub":{"subsub":["value5","value6","value7","value8","value9"]}
+//			}
+//	}`
+//
+// [
+// map[age:44 first:Dale last:Murphy nets:ig subfirst:Dale sublast:Murphy subsub:value5],
+// map[age:44 first:Dale last:Murphy nets:fb subfirst:Dale sublast:Murphy subsub:value5],
+// map[age:44 first:Dale last:Murphy nets:value1 subfirst:Dale sublast:Murphy subsub:value5],
+// ...
+// ]
+func FlattenJSON(b []byte) ([]map[string]interface{}, error) {
+	var jsonObj map[string]interface{}
+	err := json.Unmarshal(b, &jsonObj)
+	if err != nil {
+		return nil, err
+	}
+
+	return flatten(jsonObj, make(map[string]interface{})), nil
+}
+
+func flatten(jsonObj map[string]interface{}, result map[string]interface{}) []map[string]interface{} {
+	tempResults := []map[string]interface{}{make(map[string]interface{})}
+	for k, v := range jsonObj {
+		switch value := v.(type) {
+		case map[string]interface{}:
+			nestedResults := flatten(value, result)
+			newTempResults := []map[string]interface{}{}
+			for _, nested := range nestedResults {
+				for _, item := range tempResults {
+					newItem := make(map[string]interface{})
+					for key, val := range item {
+						newItem[key] = val
+					}
+					for key, val := range nested {
+						newItem[key] = val
+					}
+					newTempResults = append(newTempResults, newItem)
+				}
+			}
+			tempResults = newTempResults
+		case []interface{}:
+			newTempResults := []map[string]interface{}{}
+			for _, elem := range value {
+				for _, item := range tempResults {
+					newItem := make(map[string]interface{})
+					for key, val := range item {
+						newItem[key] = val
+					}
+					newItem[k] = elem
+					newTempResults = append(newTempResults, newItem)
+				}
+			}
+			tempResults = newTempResults
+		default:
+			for _, item := range tempResults {
+				item[k] = value
+			}
+		}
+	}
+
+	// Merge each item with result
+	finalResults := []map[string]interface{}{}
+	for _, item := range tempResults {
+		newItem := make(map[string]interface{})
+		for key, val := range result {
+			newItem[key] = val
+		}
+		for key, val := range item {
+			newItem[key] = val
+		}
+		finalResults = append(finalResults, newItem)
+	}
+
+	return finalResults
 }

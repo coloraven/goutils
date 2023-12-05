@@ -48,3 +48,21 @@ func TestStringCookiesToMAP(t *testing.T) {
 		fmt.Printf("%s:%s\n", k, v)
 	}
 }
+
+func TestFlatten(t *testing.T) {
+	jsonData := `{
+						"first": "Dale",
+						"last": "Murphy",
+						"age": 44,
+						"nets": ["ig", "fb", "value1", "value2"],
+						"submap": {
+							"subfirst": "Dale",
+							"sublast": ["Murphy", "value3", "value4"],
+							"subsub":{"subsub":["value5","value6","value7","value8","value9"]}
+						}
+				}`
+	flattenedData, _ := FlattenJSON([]byte(jsonData))
+	for _, ele := range flattenedData {
+		fmt.Print(ele, "\n")
+	}
+}
