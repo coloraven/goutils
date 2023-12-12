@@ -250,3 +250,11 @@ func GetDay(day string) (time.Time, error) {
 	// 如果所有布局都无法解析，则返回错误
 	return time.Time{}, fmt.Errorf("unknown or invalid date format: %v", day)
 }
+
+func TraceTime() func() {
+	pre := time.Now()
+	return func() {
+		elapsed := time.Since(pre)
+		fmt.Println("Costs Time:\t", elapsed)
+	}
+}

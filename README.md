@@ -6,7 +6,7 @@
 
 
 发现超强的武器库：
-github.com/samber/lo
+https://github.com/samber/lo
 这个仓库如何食用
 
 地址：https://gitee.com/hengy1/samber_example

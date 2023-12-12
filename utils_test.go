@@ -3,6 +3,7 @@ package goutils
 import (
 	"fmt"
 	"testing"
+	"time"
 )
 
 func TestWriteMapsToXLSX(t *testing.T) {
@@ -65,4 +66,9 @@ func TestFlatten(t *testing.T) {
 	for _, ele := range flattenedData {
 		fmt.Print(ele, "\n")
 	}
+}
+
+func TestTraceTime(t *testing.T) {
+	defer TraceTime()()
+	time.Sleep(5 * time.Second)
 }
