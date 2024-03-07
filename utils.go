@@ -197,6 +197,9 @@ func FindColumnIndexByTitle(f *excelize.File, sheetName, title string) (int, err
 // map切片写入csv文件中
 func WriteMapsToCSV(datas []map[string]string, filename string, delimiter ...rune) {
 	// 文件后缀名处理
+	if len(datas) == 0 {
+		fmt.Println("WriteMapsToCSV反映：数据为空")
+	}
 	r := strings.Split(filename, ".")
 	if len(r) > 1 && r[1] == "csv" {
 		filename = r[0]
@@ -255,6 +258,9 @@ func WriteMapsToCSV(datas []map[string]string, filename string, delimiter ...run
 
 // WriteMapsToXLSX 将 []map[string]string 数据写入给定文件名的 XLSX 文件。
 func WriteMapsToXLSX(data []map[string]string, filename string) error {
+	if len(data) == 0 {
+		return fmt.Errorf("数据为空")
+	}
 	// 判断文件后缀
 	r := strings.Split(filename, ".")
 	if len(r) > 1 && r[1] != "xlsx" {

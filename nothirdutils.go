@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -257,4 +258,32 @@ func TraceTime() func() {
 		elapsed := time.Since(pre)
 		fmt.Println("Costs Time:\t", elapsed)
 	}
+}
+
+// 将结构体转换为 map[string]string
+func structToMap(s interface{}) (map[string]string, error) {
+	// 创建一个map
+	result := make(map[string]string)
+
+	// 获取s的反射值对象
+	val := reflect.ValueOf(s)
+	if val.Kind() != reflect.Struct {
+		return nil, fmt.Errorf("expected a struct, got %s", val.Kind())
+	}
+
+	// 遍历结构体的所有字段
+	for i := 0; i < val.NumField(); i++ {
+		field := val.Type().Field(i)
+		value := val.Field(i)
+
+		// 确保字段是string类型
+		if value.Kind() != reflect.String {
+			return nil, fmt.Errorf("field %s is not a string", field.Name)
+		}
+
+		// 将字段添加到map中
+		result[field.Name] = value.String()
+	}
+
+	return result, nil
 }
